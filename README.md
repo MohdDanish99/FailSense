@@ -12,6 +12,14 @@ live ranked dashboard.
 
 Open http://localhost:8000.
 
+## Deploy to Render
+1. Sign in to [Render](https://render.com/) and choose **New + → Blueprint**.
+2. Connect the `MohdDanish99/FailSense` GitHub repository. Render detects `render.yaml`; review the `failsense` web service and choose **Apply**.
+3. Render builds and deploys the service. Open its `onrender.com` URL to use the dashboard. The `/api/health` endpoint is used for health checks.
+4. Render generates `PDM_API_KEY` for the service. In the service's **Environment** settings, reveal/copy it when configuring a trusted sensor client. Send it as the `X-API-Key` header on every `POST /api/ingest` request. Do not put this key in browser code or commit it to GitHub.
+
+The free Render service may spin down when idle, and this app keeps machine history in memory, so history is lost when the service restarts. Use persistent storage and a paid always-on instance for production workloads.
+
 ## Send your own readings
     curl -X POST http://localhost:8000/api/ingest -H "Content-Type: application/json" \
       -d '{"machine_id":"PUMP-7","cycle":57,"vibration":2.3,"temperature":71.2,"pressure":29.8,"current":10.4,"rpm":1498,"oil_debris":5.3}'

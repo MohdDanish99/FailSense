@@ -1,0 +1,11 @@
+services:
+  - type: web
+    name: failsense
+    runtime: python
+    plan: free
+    buildCommand: pip install -r requirements.txt
+    startCommand: python server.py --port $PORT
+    healthCheckPath: /api/health
+    envVars:
+      - key: PDM_API_KEY
+        generateValue: true
