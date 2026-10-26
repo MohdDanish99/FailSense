@@ -1,0 +1,66 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Predictive Maintenance Dashboard</title>
+<style>
+:root{--bg:#f6f7f9;--card:#fff;--tx:#1b1f24;--mu:#667085;--bd:#e3e6eb;--cr:#d92d20;--wa:#e8890c;--ok:#16915a;--ac:#2557d6;color-scheme:light;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#101319;--card:#181c24;--tx:#e8eaee;--mu:#9aa3b2;--bd:#2a303b;--cr:#f97066;--wa:#f5a524;--ok:#3ccb8b;--ac:#6b93ff;color-scheme:dark}}
+:root[data-theme="dark"]{--bg:#101319;--card:#181c24;--tx:#e8eaee;--mu:#9aa3b2;--bd:#2a303b;--cr:#f97066;--wa:#f5a524;--ok:#3ccb8b;--ac:#6b93ff;color-scheme:dark}
+*{box-sizing:border-box}html{scroll-padding-top:env(safe-area-inset-top,0px)}
+body{margin:0;background:var(--bg);color:var(--tx);font:14px/1.45 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
+main{max-width:1100px;margin:0 auto;padding:20px 16px 40px}
+h1{font-size:20px;margin:0}.sub{color:var(--mu);margin:2px 0 16px}
+.kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:10px;margin-bottom:16px}
+.card{background:var(--card);border:1px solid var(--bd);border-radius:10px;padding:12px 14px}
+.kpi b{display:block;font-size:26px}.kpi span{color:var(--mu);font-size:12px}
+.bar{display:flex;gap:8px;margin-bottom:10px;flex-wrap:wrap}
+.bar button{border:1px solid var(--bd);background:var(--card);color:var(--tx);padding:5px 12px;border-radius:99px;cursor:pointer;font:inherit}
+.bar button.on{background:var(--ac);border-color:var(--ac);color:#fff}
+.grid{display:grid;grid-template-columns:1.2fr 1fr;gap:14px}@media(max-width:820px){.grid{grid-template-columns:1fr}}
+.tw{overflow-x:auto}table{width:100%;border-collapse:collapse}
+th,td{text-align:left;padding:8px 10px;border-bottom:1px solid var(--bd);white-space:nowrap}
+th{color:var(--mu);font-weight:600;font-size:12px}tr.r{cursor:pointer}tr.r:hover,tr.sel{background:color-mix(in srgb,var(--ac) 10%,transparent)}
+.pill{padding:2px 9px;border-radius:99px;font-size:12px;font-weight:600;color:#fff}
+.critical{background:var(--cr)}.warning{background:var(--wa)}.healthy{background:var(--ok)}
+.meter{display:inline-block;width:70px;height:6px;background:var(--bd);border-radius:3px;vertical-align:middle;margin-right:6px}
+.meter i{display:block;height:100%;border-radius:3px}
+h2{font-size:15px;margin:0 0 4px}.act{margin:8px 0 12px;padding:8px 10px;border-left:3px solid var(--ac);background:color-mix(in srgb,var(--ac) 8%,transparent);border-radius:4px}
+svg{width:100%;height:auto;display:block}.lg{color:var(--mu);font-size:12px;margin:2px 0 10px}
+.foot{color:var(--mu);font-size:12px;margin-top:16px}
+</style></head><body><main>
+<h1>⚙️ Predictive Maintenance Dashboard</h1>
+<p class="sub"><span id="conn">Connecting…</span> · live data from the prediction API, refreshed every 2 seconds.</p>
+<div class="kpis" id="kpis"></div>
+<div class="bar" id="bar"></div>
+<div class="grid">
+<div class="card tw"><table><thead><tr><th>#</th><th>Machine</th><th>Status</th><th>Failure risk (30 cycles)</th><th>Est. RUL</th></tr></thead><tbody id="tb"></tbody></table></div>
+<div class="card" id="detail"></div></div>
+<p class="foot">Critical: risk ≥ 50% or RUL ≤ 30 cycles. Warning: risk ≥ 10% or RUL ≤ 60. Send readings to POST /api/ingest to add machines.</p>
+</main>
+<script>
+let D=[],flt='all',sel=null;
+const col={critical:'var(--cr)',warning:'var(--wa)',healthy:'var(--ok)'};
+const act={critical:'Schedule maintenance immediately and take the machine out of heavy duty.',warning:'Plan an inspection at the next maintenance window; keep monitoring.',healthy:'No action needed. Continue routine monitoring.'};
+const cnt=s=>D.filter(m=>m.s===s).length;
+function kpis(){document.getElementById('kpis').innerHTML=[['Machines',D.length,''],['Critical',cnt('critical'),'critical'],['Warning',cnt('warning'),'warning'],['Healthy',cnt('healthy'),'healthy']].map(k=>`<div class="card kpi"><span>${k[0]}</span><b style="color:${col[k[2]]||'inherit'}">${k[1]}</b></div>`).join('')}
+document.getElementById('bar').innerHTML=['all','critical','warning','healthy'].map(f=>`<button data-f="${f}">${f[0].toUpperCase()+f.slice(1)}</button>`).join('');
+document.getElementById('bar').onclick=e=>{if(e.target.dataset.f){flt=e.target.dataset.f;render()}};
+function nz(a){const mn=Math.min(...a),mx=Math.max(...a);return a.map(v=>(v-mn)/((mx-mn)||1))}
+function line(series,w=420,h=90,mn=null,mx=null){
+ const all=series.flatMap(s=>s.v);mn=mn??Math.min(...all);mx=mx??Math.max(...all);if(mx===mn)mx=mn+1;
+ const n=Math.max(series[0].v.length,2),X=i=>6+i*(w-12)/(n-1),Y=v=>h-6-(v-mn)*(h-12)/(mx-mn);
+ return `<svg viewBox="0 0 ${w} ${h}"><line x1="6" x2="${w-6}" y1="${h-6}" y2="${h-6}" stroke="var(--bd)"/>`+series.map(s=>`<polyline fill="none" stroke="${s.c}" stroke-width="2" points="${s.v.map((v,i)=>X(i)+','+Y(v)).join(' ')}"/>`).join('')+`</svg>`}
+function render(){
+ document.querySelectorAll('#bar button').forEach(b=>b.classList.toggle('on',b.dataset.f===flt));
+ const rows=D.filter(m=>flt==='all'||m.s===flt);
+ document.getElementById('tb').innerHTML=rows.map((m,i)=>`<tr class="r ${m.id===sel?'sel':''}" data-id="${m.id}"><td>${i+1}</td><td><b>${m.id}</b></td><td><span class="pill ${m.s}">${m.s}</span></td><td><span class="meter"><i style="width:${Math.max(2,m.p*100)}%;background:${col[m.s]}"></i></span>${(m.p*100).toFixed(0)}%</td><td>${m.rul} cycles</td></tr>`).join('')||'<tr><td colspan="5">No machines yet. Start the simulator or POST readings to /api/ingest.</td></tr>';
+ const m=D.find(x=>x.id===sel)||D[0];if(!m){document.getElementById('detail').innerHTML='<h2>Waiting for data…</h2>';return}
+ document.getElementById('detail').innerHTML=`<h2>${m.id} <span class="pill ${m.s}">${m.s}</span></h2><div class="lg">Operating cycle ${m.cycle} · risk ${(m.p*100).toFixed(0)}% · about ${m.rul} cycles left</div><div class="act">${act[m.s]}</div>
+ <div class="lg"><b>Failure probability</b>, recent cycles</div>${line([{v:m.hp,c:'var(--cr)'}],420,90,0,1)}
+ <div class="lg"><b>Predicted RUL</b> (cycles)</div>${line([{v:m.hr,c:'var(--ac)'}],420,90,0,125)}
+ <div class="lg"><b>Sensor drift</b> vs own baseline, scaled <span style="color:var(--cr)">■ vibration</span> <span style="color:var(--wa)">■ temperature</span> <span style="color:var(--ac)">■ pressure</span></div>
+ ${line([{v:nz(m.sv),c:'var(--cr)'},{v:nz(m.st),c:'var(--wa)'},{v:nz(m.sp),c:'var(--ac)'}])}`}
+document.getElementById('tb').onclick=e=>{const r=e.target.closest('tr.r');if(r){sel=r.dataset.id;render()}};
+async function poll(){const c=document.getElementById('conn');try{D=await (await fetch('/api/fleet')).json();if(!sel&&D.length)sel=D[0].id;c.textContent='● Live';c.style.color='var(--ok)';kpis();render()}catch(e){c.textContent='● Offline';c.style.color='var(--cr)'}}
+poll();setInterval(poll,2000);
+</script></body></html>
