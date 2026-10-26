@@ -9,3 +9,5 @@ services:
     envVars:
       - key: PDM_API_KEY
         generateValue: true
+      - key: PDM_DEMO_MACHINES
+        value: "6"

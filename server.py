@@ -7,7 +7,7 @@ Endpoints:
   GET  /api/health        liveness check
   GET  /                  live dashboard
 """
-import json, os, sys, threading, time, joblib, pandas as pd
+import json, os, random, sys, threading, time, joblib, pandas as pd
 from http.server import ThreadingHTTPServer, BaseHTTPRequestHandler
 import predictive_maintenance as pm
 
@@ -68,7 +68,43 @@ class H(BaseHTTPRequestHandler):
         except (ValueError, KeyError, json.JSONDecodeError) as e: self._send(400, {"error": str(e)})
     def log_message(self, *a): pass
 
+def start_demo_simulator():
+    count = int(os.environ.get("PDM_DEMO_MACHINES", "0"))
+    if count <= 0:
+        return
+
+    def run():
+        units = pm.simulate_fleet(n=count, seed=2024)
+        machines = {
+            mid: rows.sort_values("cycle").to_dict("records")
+            for mid, rows in units.groupby("machine_id")
+        }
+        positions = {}
+        for mid, rows in machines.items():
+            start = max(40, len(rows) - random.choice([8, 20, 35, 50, 80, 120, 200, 260]))
+            for row in rows[:start]:
+                ingest({**{k: row[k] for k in ["cycle"] + SENS}, "machine_id": f"M-{mid:03d}"})
+            positions[mid] = start
+
+        print(f"Demo simulator started for {count} machines.")
+        while True:
+            batch = []
+            for mid, rows in machines.items():
+                if positions[mid] < len(rows):
+                    row = rows[positions[mid]]
+                    positions[mid] += 1
+                    batch.append({**{k: row[k] for k in ["cycle"] + SENS}, "machine_id": f"M-{mid:03d}"})
+            if not batch:
+                print("Demo simulator: all machines have run to failure.")
+                return
+            for record in batch:
+                ingest(record)
+            time.sleep(2)
+
+    threading.Thread(target=run, name="demo-simulator", daemon=True).start()
+
 if __name__ == "__main__":
     port = int(sys.argv[sys.argv.index("--port") + 1]) if "--port" in sys.argv else 8000
+    start_demo_simulator()
     print(f"Dashboard: http://localhost:{port}   (Ctrl+C to stop)")
     ThreadingHTTPServer(("0.0.0.0", port), H).serve_forever()

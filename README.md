@@ -17,6 +17,7 @@ Open http://localhost:8000.
 2. Connect the `MohdDanish99/FailSense` GitHub repository. Render detects `render.yaml`; review the `failsense` web service and choose **Apply**.
 3. Render installs the dependencies and retrains the model during each build so the saved model matches the deployed scikit-learn version. Once deployment succeeds, open the service's `onrender.com` URL to use the dashboard. The `/api/health` endpoint is used for health checks.
 4. Render generates `PDM_API_KEY` for the service. In the service's **Environment** settings, reveal/copy it when configuring a trusted sensor client. Send it as the `X-API-Key` header on every `POST /api/ingest` request. Do not put this key in browser code or commit it to GitHub.
+5. The Render Blueprint starts six clearly labeled `M-...` simulated machines for the dashboard demo. Set `PDM_DEMO_MACHINES` to `0` in the service's **Environment** settings to turn off the demo simulator. These are generated readings, not live equipment.
 
 The free Render service may spin down when idle, and this app keeps machine history in memory, so history is lost when the service restarts. Use persistent storage and a paid always-on instance for production workloads.
 
